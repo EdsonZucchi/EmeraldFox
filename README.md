@@ -233,10 +233,13 @@ Status utilizados:
 | `400` | Corpo ausente, malformado ou com campos desconhecidos |
 | `401` | Token ausente, inválido ou expirado |
 | `404` | Recurso ou e-mail não encontrado |
+| `405` | Método não suportado pela rota |
 | `409` | E-mail já cadastrado |
-| `415` | `Content-Type` diferente de `application/json` |
+| `413` | Corpo da requisição acima de 1 MiB |
+| `415` | `Content-Type` ausente ou diferente de `application/json` |
 | `422` | Dados válidos como JSON, porém inválidos como regra de negócio |
 | `500` | Falha interna (detalhes apenas nos logs) |
+| `503` | Banco de dados indisponível (`GET /health`) |
 
 Mensagens de erro nunca expõem detalhes internos — driver, SQL, stack trace ou
 endereços de infraestrutura ficam restritos aos logs.
@@ -260,6 +263,9 @@ O middleware [`middleware.Authenticate`](internal/middleware/auth.go):
 3. extrai o ID do usuário da claim `sub`;
 4. carrega o usuário no banco;
 5. armazena o usuário no `context.Context` e adiciona `user_id` aos logs.
+
+Toda recusa responde `401` com o cabeçalho
+`WWW-Authenticate: Bearer realm="emeraldfox"`.
 
 ## Middlewares
 

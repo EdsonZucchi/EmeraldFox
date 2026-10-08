@@ -55,11 +55,12 @@ func (b base) fail(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 // decode lê e valida o corpo JSON da requisição.
+//
+// O Content-Type é obrigatório e verificado antes da leitura do corpo.
 func (b base) decode(w http.ResponseWriter, r *http.Request, dst any) error {
-	if contentType := r.Header.Get("Content-Type"); contentType != "" {
-		if mediaType, _, _ := strings.Cut(contentType, ";"); !strings.EqualFold(strings.TrimSpace(mediaType), "application/json") {
-			return apperr.New(http.StatusUnsupportedMediaType, "O corpo da requisição deve ser application/json")
-		}
+	mediaType, _, _ := strings.Cut(r.Header.Get("Content-Type"), ";")
+	if !strings.EqualFold(strings.TrimSpace(mediaType), "application/json") {
+		return apperr.New(http.StatusUnsupportedMediaType, "O corpo da requisição deve ser application/json")
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)

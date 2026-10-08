@@ -19,6 +19,10 @@ import (
 // bearerPrefix é o esquema de autorização aceito.
 const bearerPrefix = "Bearer "
 
+// wwwAuthenticate é o desafio devolvido em toda resposta 401 das rotas
+// protegidas (RFC 6750).
+const wwwAuthenticate = `Bearer realm="emeraldfox"`
+
 // UserLoader carrega o usuário autenticado a partir do identificador contido
 // no token.
 type UserLoader interface {
@@ -65,6 +69,7 @@ func Authenticate(tokens *auth.TokenManager, users UserLoader, log *slog.Logger)
 					slog.String("user_id", userID.String()),
 					slog.String("error", err.Error()),
 				)
+				w.Header().Set("WWW-Authenticate", wwwAuthenticate)
 				response.Error(w, http.StatusUnauthorized, "Token inválido")
 
 				return
@@ -105,6 +110,6 @@ func unauthorized(ctx context.Context, w http.ResponseWriter, log *slog.Logger, 
 		slog.String("error", err.Error()),
 	)
 
-	w.Header().Set("WWW-Authenticate", `Bearer realm="emeraldfox"`)
+	w.Header().Set("WWW-Authenticate", wwwAuthenticate)
 	response.Error(w, http.StatusUnauthorized, message)
 }

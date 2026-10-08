@@ -70,6 +70,18 @@ func (fakePinger) PingContext(context.Context) error { return nil }
 func newTestAPI(t *testing.T) http.Handler {
 	t.Helper()
 
+	api, _ := newTestAPIWithRepository(t)
+
+	return api
+}
+
+// newTestAPIWithRepository monta a API e devolve também o repositório em
+// memória, para testes que precisam manipular os dados diretamente.
+func newTestAPIWithRepository(t *testing.T) (http.Handler, *fakeUserRepository) {
+	t.Helper()
+
+	repo := &fakeUserRepository{users: make(map[uuid.UUID]*models.User)}
+
 	cfg := &config.Config{
 		CORS: config.CORS{
 			AllowedOrigins: []string{"https://app.exemplo.com"},
@@ -81,9 +93,9 @@ func newTestAPI(t *testing.T) http.Handler {
 
 	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	tokens := auth.NewTokenManager("chave-de-teste-com-tamanho-suficiente", time.Hour, "emeraldfox-test")
-	users := service.NewUserService(&fakeUserRepository{users: make(map[uuid.UUID]*models.User)}, tokens, log)
+	users := service.NewUserService(repo, tokens, log)
 
-	return routes.New(routes.Dependencies{
+	api := routes.New(routes.Dependencies{
 		Config: cfg,
 		Logger: log,
 		Tokens: tokens,
@@ -92,9 +104,13 @@ func newTestAPI(t *testing.T) http.Handler {
 		User:   handlers.NewUserHandler(log),
 		Health: handlers.NewHealthHandler(fakePinger{}, log),
 	})
+
+	return api, repo
 }
 
 // do executa uma requisição contra a API montada para os testes.
+//
+// Um cabeçalho informado com valor vazio é removido da requisição.
 func do(t *testing.T, api http.Handler, method, path, body string, headers map[string]string) (*http.Response, map[string]any) {
 	t.Helper()
 
@@ -109,6 +125,10 @@ func do(t *testing.T, api http.Handler, method, path, body string, headers map[s
 	}
 
 	for key, value := range headers {
+		if value == "" {
+			req.Header.Del(key)
+			continue
+		}
 		req.Header.Set(key, value)
 	}
 
@@ -265,6 +285,79 @@ func TestCorpoInvalidoRetornaBadRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRespostas401IncluemWWWAuthenticate(t *testing.T) {
+	const challenge = `Bearer realm="emeraldfox"`
+
+	api, repo := newTestAPIWithRepository(t)
+
+	if res, body := do(t, api, http.MethodPost, "/register", `{"name":"Edson","email":"edson@exemplo.com"}`, nil); res.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /register status = %d (%v)", res.StatusCode, body)
+	}
+
+	res, body := do(t, api, http.MethodPost, "/login", `{"email":"edson@exemplo.com"}`, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("POST /login status = %d (%v)", res.StatusCode, body)
+	}
+
+	token := body["data"].(map[string]any)["token"].(string)
+
+	t.Run("USR-RN-017 token ausente", func(t *testing.T) {
+		res, _ := do(t, api, http.MethodGet, "/me", "", nil)
+		if got := res.Header.Get("WWW-Authenticate"); got != challenge {
+			t.Errorf("WWW-Authenticate = %q, esperado %q", got, challenge)
+		}
+	})
+
+	t.Run("USR-RN-016 USR-RN-017 usuário do token removido", func(t *testing.T) {
+		for id := range repo.users {
+			delete(repo.users, id)
+		}
+
+		res, body := do(t, api, http.MethodGet, "/me", "", map[string]string{"Authorization": "Bearer " + token})
+		if res.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("GET /me status = %d, esperado %d (%v)", res.StatusCode, http.StatusUnauthorized, body)
+		}
+
+		if body["message"] != "Token inválido" {
+			t.Errorf("message = %v, esperado %q", body["message"], "Token inválido")
+		}
+
+		if got := res.Header.Get("WWW-Authenticate"); got != challenge {
+			t.Errorf("WWW-Authenticate = %q, esperado %q", got, challenge)
+		}
+	})
+}
+
+func TestContentTypeObrigatorio(t *testing.T) {
+	api := newTestAPI(t)
+	payload := `{"email":"edson@exemplo.com"}`
+
+	cases := map[string]string{
+		"PLT-RN-006 cabeçalho ausente": "",
+		"PLT-RN-006 outro tipo":        "text/plain",
+	}
+
+	for name, contentType := range cases {
+		t.Run(name, func(t *testing.T) {
+			res, body := do(t, api, http.MethodPost, "/login", payload, map[string]string{"Content-Type": contentType})
+			if res.StatusCode != http.StatusUnsupportedMediaType {
+				t.Fatalf("POST /login status = %d, esperado %d (%v)", res.StatusCode, http.StatusUnsupportedMediaType, body)
+			}
+
+			if body["message"] != "O corpo da requisição deve ser application/json" {
+				t.Errorf("message = %v", body["message"])
+			}
+		})
+	}
+
+	t.Run("PLT-RN-006 parâmetros e maiúsculas aceitos", func(t *testing.T) {
+		res, body := do(t, api, http.MethodPost, "/login", payload, map[string]string{"Content-Type": "Application/JSON; charset=utf-8"})
+		if res.StatusCode == http.StatusUnsupportedMediaType {
+			t.Fatalf("POST /login status = %d, Content-Type válido foi rejeitado (%v)", res.StatusCode, body)
+		}
+	})
 }
 
 func TestRequestIDEhGeradoOuPropagado(t *testing.T) {
