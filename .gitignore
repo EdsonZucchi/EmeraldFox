@@ -1,0 +1,25 @@
+# Variáveis de ambiente (nunca versionar segredos)
+.env
+.env.local
+
+# Logs gerados em runtime
+logs/
+
+# Binários
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+finance-api
+emeraldfox
+
+# Testes / cobertura
+*.test
+*.out
+coverage.*
+
+# Sistema operacional
+.DS_Store
+Thumbs.db

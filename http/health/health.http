@@ -1,0 +1,40 @@
+### Health check — API e banco disponíveis
+# Esperado: 200 com {"status":"ok","database":"up"}.
+# Responde 503 quando o PostgreSQL não está acessível.
+GET {{baseUrl}}/health
+Accept: application/json
+
+> {%
+    client.test("Responde 200", function () {
+        client.assert(response.status === 200, "Status recebido: " + response.status);
+    });
+    client.test("Banco disponível", function () {
+        client.assert(response.body.data.database === "up", "Banco: " + response.body.data.database);
+    });
+    client.test("Devolve X-Request-ID", function () {
+        client.assert(response.headers.valueOf("X-Request-ID") !== null, "Cabeçalho ausente");
+    });
+%}
+
+### Health check — reaproveita o X-Request-ID enviado pelo cliente
+GET {{baseUrl}}/health
+Accept: application/json
+X-Request-ID: teste-http-client-001
+
+> {%
+    client.test("Ecoa o X-Request-ID informado", function () {
+        client.assert(response.headers.valueOf("X-Request-ID") === "teste-http-client-001",
+            "Recebido: " + response.headers.valueOf("X-Request-ID"));
+    });
+%}
+
+### Método não permitido
+# Esperado: 405.
+POST {{baseUrl}}/health
+Accept: application/json
+
+> {%
+    client.test("Responde 405", function () {
+        client.assert(response.status === 405, "Status recebido: " + response.status);
+    });
+%}

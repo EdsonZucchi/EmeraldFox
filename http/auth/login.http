@@ -1,0 +1,82 @@
+### Login — usuário padrão do ambiente
+# Esperado: 200 com o JWT. O token é salvo em {{token}} e reaproveitado em me.http.
+# Pré-requisito: usuário criado pelo primeiro request de register.http.
+POST {{baseUrl}}/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{email}}"
+}
+
+> {%
+    client.test("Responde 200", function () {
+        client.assert(response.status === 200, "Status recebido: " + response.status);
+    });
+    client.test("Devolve o token", function () {
+        client.assert(response.body.data.token, "token ausente");
+    });
+    client.global.set("token", response.body.data.token);
+%}
+
+### Login — e-mail com maiúsculas e espaços é normalizado
+# Esperado: 200, o e-mail é tratado sem diferenciar maiúsculas.
+POST {{baseUrl}}/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "  TESTE@EMERALDFOX.DEV  "
+}
+
+> {%
+    client.test("Responde 200", function () {
+        client.assert(response.status === 200, "Status recebido: " + response.status);
+    });
+%}
+
+### Login — e-mail não cadastrado
+# Esperado: 404.
+POST {{baseUrl}}/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "nao-existe-{{$timestamp}}@emeraldfox.dev"
+}
+
+> {%
+    client.test("Responde 404", function () {
+        client.assert(response.status === 404, "Status recebido: " + response.status);
+    });
+%}
+
+### Login — e-mail inválido
+# Esperado: 422.
+POST {{baseUrl}}/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "email-invalido"
+}
+
+> {%
+    client.test("Responde 422", function () {
+        client.assert(response.status === 422, "Status recebido: " + response.status);
+    });
+%}
+
+### Login — JSON malformado
+# Esperado: 400.
+POST {{baseUrl}}/login
+Content-Type: application/json
+Accept: application/json
+
+{ "email": "{{email}}"
+
+> {%
+    client.test("Responde 400", function () {
+        client.assert(response.status === 400, "Status recebido: " + response.status);
+    });
+%}

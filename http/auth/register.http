@@ -1,0 +1,115 @@
+### Cadastro — usuário padrão do ambiente
+# Cria o usuário usado pelos demais arquivos (login.http, me.http).
+# Na primeira execução responde 201; nas seguintes, 409 (e-mail já cadastrado).
+POST {{baseUrl}}/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "{{name}}",
+  "email": "{{email}}"
+}
+
+> {%
+    client.test("Responde 201 ou 409", function () {
+        client.assert(response.status === 201 || response.status === 409, "Status recebido: " + response.status);
+    });
+%}
+
+### Cadastro — e-mail único a cada execução
+# Esperado: 201 com o usuário criado.
+POST {{baseUrl}}/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "Usuário Aleatório",
+  "email": "teste+{{$timestamp}}@emeraldfox.dev"
+}
+
+> {%
+    client.test("Responde 201", function () {
+        client.assert(response.status === 201, "Status recebido: " + response.status);
+    });
+    client.test("Devolve o id do usuário", function () {
+        client.assert(response.body.data.id, "id ausente");
+    });
+%}
+
+### Cadastro — e-mail duplicado
+# Esperado: 409. Depende do primeiro request deste arquivo.
+POST {{baseUrl}}/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "{{name}}",
+  "email": "{{email}}"
+}
+
+> {%
+    client.test("Responde 409", function () {
+        client.assert(response.status === 409, "Status recebido: " + response.status);
+    });
+%}
+
+### Cadastro — dados inválidos (nome curto e e-mail inválido)
+# Esperado: 422.
+POST {{baseUrl}}/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "A",
+  "email": "email-invalido"
+}
+
+> {%
+    client.test("Responde 422", function () {
+        client.assert(response.status === 422, "Status recebido: " + response.status);
+    });
+%}
+
+### Cadastro — campo desconhecido
+# Esperado: 400. O corpo não aceita campos além de name e email.
+POST {{baseUrl}}/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "{{name}}",
+  "email": "{{email}}",
+  "password": "123456"
+}
+
+> {%
+    client.test("Responde 400", function () {
+        client.assert(response.status === 400, "Status recebido: " + response.status);
+    });
+%}
+
+### Cadastro — corpo ausente
+# Esperado: 400.
+POST {{baseUrl}}/register
+Content-Type: application/json
+Accept: application/json
+
+> {%
+    client.test("Responde 400", function () {
+        client.assert(response.status === 400, "Status recebido: " + response.status);
+    });
+%}
+
+### Cadastro — Content-Type diferente de JSON
+# Esperado: 415.
+POST {{baseUrl}}/register
+Content-Type: text/plain
+Accept: application/json
+
+name={{name}}&email={{email}}
+
+> {%
+    client.test("Responde 415", function () {
+        client.assert(response.status === 415, "Status recebido: " + response.status);
+    });
+%}

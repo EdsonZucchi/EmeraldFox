@@ -1,0 +1,51 @@
+### Usuário autenticado
+# Esperado: 200 com os dados do usuário dono do token.
+# Pré-requisito: executar o primeiro request de auth/login.http, que salva {{token}}.
+GET {{baseUrl}}/me
+Accept: application/json
+Authorization: Bearer {{token}}
+
+> {%
+    client.test("Responde 200", function () {
+        client.assert(response.status === 200, "Status recebido: " + response.status);
+    });
+    client.test("Devolve o usuário do token", function () {
+        client.assert(response.body.data.email === request.environment.get("email"),
+            "E-mail recebido: " + response.body.data.email);
+    });
+%}
+
+### Sem token
+# Esperado: 401.
+GET {{baseUrl}}/me
+Accept: application/json
+
+> {%
+    client.test("Responde 401", function () {
+        client.assert(response.status === 401, "Status recebido: " + response.status);
+    });
+%}
+
+### Token inválido
+# Esperado: 401.
+GET {{baseUrl}}/me
+Accept: application/json
+Authorization: Bearer token-invalido
+
+> {%
+    client.test("Responde 401", function () {
+        client.assert(response.status === 401, "Status recebido: " + response.status);
+    });
+%}
+
+### Esquema de autorização diferente de Bearer
+# Esperado: 401.
+GET {{baseUrl}}/me
+Accept: application/json
+Authorization: Basic dGVzdGU6dGVzdGU=
+
+> {%
+    client.test("Responde 401", function () {
+        client.assert(response.status === 401, "Status recebido: " + response.status);
+    });
+%}
